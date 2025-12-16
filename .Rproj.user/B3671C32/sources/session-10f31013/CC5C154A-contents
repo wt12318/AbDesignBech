@@ -7,16 +7,19 @@ library(shinycssloaders)
 library(NGLVieweR)
 library(DT)
 library(dplyr)
-
+###set AbRSA and tmp dir
+AbRSA_path <- "~/Antigen_design/scripts/AbRSA/AbRSA"
+tmp_dir <- "/data/sda/wt/tmp"
+##
 run_anno <- function(seq){
-  temp_file <- paste0("/data/sdd/wt/antibody_design/tmp/anno_test",".fa")
+  temp_file <- paste0(tmp_dir,"/anno_test",".fa")
   seqinr::write.fasta(seq,names = "test",file.out = temp_file)
-  commd <- paste0("/home/wt/Antigen_design/scripts/AbRSA/AbRSA -i ", temp_file, 
-                  " -o /data/sdd/wt/antibody_design/tmp/anno_test",
-                  " > /data/sdd/wt/antibody_design/tmp/anno_test",".out")
+  commd <- paste0(AbRSA_path," -i ", temp_file, 
+                  " -o ", tmp_dir, "/anno_test",
+                  " > ", tmp_dir, "/anno_test",".out")
   system(commd)
   out <- tryCatch({
-    data.table::fread(paste0("/data/sdd/wt/antibody_design/tmp/anno_test",".out"),
+    data.table::fread(paste0(tmp_dir,"/anno_test",".out"),
                       skip = "#similarity",
                       data.table = F,sep = ":",header = F)
   },error = function(e){
@@ -187,6 +190,8 @@ ui <- page_navbar(
 )
 
 server <- function(input, output, session) {
+  sc_path <- dirname(this.path::this.path())
+  
   input_seq_data <- reactiveValues(
     fasta_path = NULL,
     ag_pab_path = NULL,
@@ -224,7 +229,7 @@ server <- function(input, output, session) {
   observeEvent(input$run_seq, {
     ###清空output
     system("docker exec --user ab abdesigner_last /bin/bash -c 'rm -rf /home/ab/run/run_test/output/*'")
-    system("rm -rf /home/wt/Ab_Design/test/output/*")
+    system(paste0("rm -rf ", sc_path, "/test/output/*"))
     ###
     tmp_file_pre <- as.character(as.numeric(Sys.time())) %>% gsub("[.]+","",.)
     input_seq_data$pro_name <- tmp_file_pre
@@ -240,13 +245,13 @@ server <- function(input, output, session) {
       fasta_name <- paste0("tmp_",tmp_file_pre,".fasta")
       input_seq_data$fasta_path <- paste0("/home/ab/run/run_test/output/",fasta_name)
       seqinr::write.fasta(as.list(hla),c("H","L","A"),
-                          paste0("/home/wt/Ab_Design/test/output/",fasta_name))
+                          paste0(sc_path,"/test/output/",fasta_name))
     }
     if (is.null(input_seq_data$ag_pab_path)){
       agpdb_name <- paste0("tmp_",tmp_file_pre,".pdb")
-      fs::file_copy(input$ag_pdb$datapath, paste0("/home/wt/Ab_Design/test/output/",agpdb_name))
+      fs::file_copy(input$ag_pdb$datapath, paste0(sc_path,"/test/output/",agpdb_name))
       input_seq_data$ag_pab_path <- paste0("/home/ab/run/run_test/output/",agpdb_name)
-      tmp_pdb <- bio3d::read.pdb(input_seq_data$ag_pab_path)
+      tmp_pdb <- bio3d::read.pdb(input$ag_pdb$datapath)
       input_seq_data$ag_chain <- unique(tmp_pdb$atom$chain)
     }
     ##生成配置文件
@@ -264,17 +269,17 @@ server <- function(input, output, session) {
       )
     )
     tomledit::write_toml(config_seq,
-                         paste0("/home/wt/Ab_Design/test/output/tmp_seq_",tmp_file_pre,".toml"))
+                         paste0(sc_path,"/test/output/tmp_seq_",tmp_file_pre,".toml"))
     ###run
     showPageSpinner()
     system(paste0("docker exec --user ab abdesigner_last /bin/bash -c 'source /home/ab/miniconda3/bin/activate; python /home/ab/run/run_seq.py -c ",
                   "/home/ab/run/run_test/output/tmp_seq_",tmp_file_pre,".toml'"))
     hidePageSpinner()
     ##打包结果
-    zip::zipr(zipfile = paste0("/home/wt/Ab_Design/test/res/",tmp_file_pre,"_res.zip"), 
-              files = "/home/wt/Ab_Design/test/output/")
+    zip::zipr(zipfile = paste0(sc_path,"/test/res/",tmp_file_pre,"_res.zip"), 
+              files = paste0(sc_path,"/test/output/"))
     ###展示结果
-    seq_dt <- read.csv("/home/wt/Ab_Design/test/output/seq_model_res.csv")
+    seq_dt <- read.csv(paste0(sc_path, "/test/output/seq_model_res.csv"))
     input_seq_data$res_dt <- seq_dt
     output$seq_pro_name <- renderText({
       paste0("Project Name:\n",tmp_file_pre)
@@ -300,10 +305,10 @@ server <- function(input, output, session) {
           selectInput("pre_struc_method_which","Which method to show?",
                       c("lgFold","tFold","Docking"),selected = "lgFold")
         })
-        if (!dir.exists("/home/wt/Ab_Design/test/output/docking/")){
-          system(paste0("mkdir /home/wt/Ab_Design/test/output/docking;",
-                        "unzip /home/wt/Ab_Design/test/output/docking_res",
-                        ".zip -d /home/wt/Ab_Design/test/output/docking"))
+        if (!dir.exists(paste0(sc_path, "/test/output/docking/"))){
+          system(paste0("mkdir ",sc_path,"/test/output/docking;",
+                        "unzip ",sc_path,"/test/output/docking_res",
+                        ".zip -d ",sc_path,"/test/output/docking"))
         }
       }else{
         output$pre_struc_method <- renderUI({
@@ -317,15 +322,15 @@ server <- function(input, output, session) {
                     input_seq_data$res_dt$combined_id)
       })
       
-      if (!dir.exists("/home/wt/Ab_Design/test/output/lgfold")){
-        system(paste0("mkdir /home/wt/Ab_Design/test/output/lgfold;",
-                      "unzip /home/wt/Ab_Design/test/output/lgfold_pdb_*",
-                      ".zip -d /home/wt/Ab_Design/test/output/lgfold"))
+      if (!dir.exists(paste0(sc_path,"/test/output/lgfold"))){
+        system(paste0("mkdir ",sc_path,"/test/output/lgfold;",
+                      "unzip ",sc_path,"/test/output/lgfold_pdb_*",
+                      ".zip -d ",sc_path,"/test/output/lgfold"))
       }
-      if (!dir.exists("/home/wt/Ab_Design/test/output/tfold")){
-        system(paste0("mkdir /home/wt/Ab_Design/test/output/tfold;",
-                      "unzip /home/wt/Ab_Design/test/output/tfold_pdb_*",
-                      ".zip -d /home/wt/Ab_Design/test/output/tfold"))
+      if (!dir.exists(paste0(sc_path,"/test/output/tfold"))){
+        system(paste0("mkdir ",sc_path,"/test/output/tfold;",
+                      "unzip ",sc_path,"/test/output/tfold_pdb_*",
+                      ".zip -d ",sc_path,"/test/output/tfold"))
       }
     }
     output$seq_down_ui <- renderUI({
@@ -336,15 +341,15 @@ server <- function(input, output, session) {
     req(input_seq_data$res_dt)
     req(as.logical(input$pre_structure))
     if (input$pre_struc_method_which == "lgFold"){
-      pdb_path <- paste0("/home/wt/Ab_Design/test/output/lgfold/",
+      pdb_path <- paste0(sc_path,"/test/output/lgfold/",
                          input$pre_struc_id_which,".pdb")
     }
     if (input$pre_struc_method_which == "tFold"){
-      pdb_path <- paste0("/home/wt/Ab_Design/test/output/tfold/",
+      pdb_path <- paste0(sc_path,"/test/output/tfold/",
                          input$pre_struc_id_which,".pdb")
     }
     if (input$pre_struc_method_which == "Docking"){
-      pdb_path <- paste0("/home/wt/Ab_Design/test/output/docking/",
+      pdb_path <- paste0(sc_path,"/test/output/docking/",
                          input$pre_struc_id_which,"/",input$pre_struc_id_which,
                          "_rank_1_unrelaxed.pdb")
     }
@@ -361,7 +366,7 @@ server <- function(input, output, session) {
       paste0(input_seq_data$pro_name,"_res.zip")
     },
     content = function(file) {
-      zip_file <- paste0("/home/wt/Ab_Design/test/res/",input_seq_data$pro_name,"_res.zip")
+      zip_file <- paste0(sc_path,"/test/res/",input_seq_data$pro_name,"_res.zip")
       file.copy(zip_file, file)
     }
   )
@@ -400,11 +405,11 @@ server <- function(input, output, session) {
   observeEvent(input$run_struc,{
     ###清空output
     system("docker exec --user ab abdesigner_last /bin/bash -c 'rm -rf /home/ab/run/run_test/output/*'")
-    system("rm -rf /home/wt/Ab_Design/test/output/*")
+    system(paste0("rm -rf ",sc_path,"/test/output/*"))
     ##
     if (!is.null(input_struc_data$abag_pab_path)){
       if (input_struc_data$abag_pab_path == "/home/ab/run/run_test/output/1n8z_B_C.pdb"){
-        system("cp /home/wt/Ab_Design/test/1n8z_B_C.pdb /home/wt/Ab_Design/test/output/1n8z_B_C.pdb") 
+        system(paste0("cp ",sc_path,"/test/1n8z_B_C.pdb ",sc_path,"/test/output/1n8z_B_C.pdb")) 
       }
     }
     tmp_file_pre <- as.character(as.numeric(Sys.time())) %>% gsub("[.]+","",.)
@@ -412,12 +417,14 @@ server <- function(input, output, session) {
     if (is.null(input_struc_data$abag_pab_path)){
       abagpdb_name <- paste0("tmp_",tmp_file_pre,".pdb")
       fs::file_copy(input$abag_pdb$datapath, 
-                    paste0("/home/wt/Ab_Design/test/output/",abagpdb_name))
+                    paste0(sc_path,"/test/output/",abagpdb_name))
       input_struc_data$abag_pab_path <- paste0("/home/ab/run/run_test/output/",abagpdb_name)
     }
     req(input_struc_data$abag_pab_path, cancelOutput = TRUE)
     ###
-    own_path <- gsub("ab/run/run_test/","wt/Ab_Design/test/",input_struc_data$abag_pab_path)
+    own_path <- gsub("/home/ab/run/run_test/",
+                     paste0(sc_path,"/test/"),input_struc_data$abag_pab_path)
+    print(own_path)
     right_h <- check_abag_chains(own_path,input$h_chain)
     shinyFeedback::feedbackDanger("h_chain", !right_h, "H chain ID is not in PDB")
     right_ag <- check_abag_chains(own_path,input$ag_chain)
@@ -440,7 +447,7 @@ server <- function(input, output, session) {
       )
     )
     tomledit::write_toml(config_struc,
-                         paste0("/home/wt/Ab_Design/test/output/tmp_struc_",tmp_file_pre,".toml"))
+                         paste0(sc_path,"/test/output/tmp_struc_",tmp_file_pre,".toml"))
     ###
     ###run
     showPageSpinner()
@@ -448,15 +455,15 @@ server <- function(input, output, session) {
                   "/home/ab/run/run_test/output/tmp_struc_",tmp_file_pre,".toml'"))
     hidePageSpinner()
     ##打包结果
-    zip::zipr(zipfile = paste0("/home/wt/Ab_Design/test/res/",tmp_file_pre,"_res.zip"),
-              files = "/home/wt/Ab_Design/test/output/")
+    zip::zipr(zipfile = paste0(sc_path,"/test/res/",tmp_file_pre,"_res.zip"),
+              files = paste0(sc_path,"/test/output/"))
     ###展示结果
     ##解压结果
-    system(paste0("mkdir /home/wt/Ab_Design/test/output/res/;",
-                  "unzip /home/wt/Ab_Design/test/output/*.zip",
-                  " -d /home/wt/Ab_Design/test/output/res"))
+    system(paste0("mkdir ",sc_path,"/test/output/res/;",
+                  "unzip ",sc_path,"/test/output/*.zip",
+                  " -d ",sc_path,"/test/output/res"))
     ##
-    struc_dt <- read.csv("/home/wt/Ab_Design/test/output/struc_gen_seq.csv") %>% select(-X)
+    struc_dt <- read.csv(paste0(sc_path,"/test/output/struc_gen_seq.csv")) %>% select(-X)
     if (input$struc_method %in% c("DiffAb","AbOpt")){
       struc_dt$ID <- sprintf("%04d", struc_dt$ID)
       if (input$struc_method == "AbOpt"){
@@ -465,14 +472,14 @@ server <- function(input, output, session) {
     } 
     if (input$struc_method == "RFantibody"){
       struc_dt$ID <- paste0(struc_dt$ID,"_dldesign_0")
-      rf_score <- read.csv("/home/wt/Ab_Design/test/output/res/rfantibody_scores.csv") %>% 
+      rf_score <- read.csv(paste0(sc_path,"/test/output/res/rfantibody_scores.csv")) %>% 
         select(-X)
       rf_score$ID <- paste0(rf_score$ID,"_dldesign_0")
       struc_dt <- left_join(struc_dt, rf_score)
     } 
     ##读取其他文件
     if (as.logical(input$pre_affinity) & (input$struc_method != "RFantibody")){
-      aff <- read.csv(list.files("/home/wt/Ab_Design/test/output/res/",
+      aff <- read.csv(list.files(paste0(sc_path,"/test/output/res/"),
                                  pattern = "affinity",full.names = T)) %>% select(-X)
       if (input$struc_method == "DiffAb"){
         aff$id <- sprintf("%04d", aff$id)
@@ -480,7 +487,7 @@ server <- function(input, output, session) {
       struc_dt <- left_join(struc_dt, aff %>% rename(ID=id))
     }
     if (as.logical(input$pre_energy)){
-      energy <- read.csv(list.files("/home/wt/Ab_Design/test/output/res/",
+      energy <- read.csv(list.files(paste0(sc_path,"/test/output/res/"),
                                  pattern = "rosetta",full.names = T)) %>% select(-X)
       if (input$struc_method == "DiffAb"){
         energy$id <- sprintf("%04d", energy$id)
@@ -507,7 +514,7 @@ server <- function(input, output, session) {
   ###show pdb
   output$struc_design_pdb <- renderNGLVieweR({
     req(input_struc_data$res_dt)
-    pdb_path <- paste0("/home/wt/Ab_Design/test/output/res/",
+    pdb_path <- paste0(sc_path,"/test/output/res/",
                        input$struc_id_which,".pdb")
     show_agchain <- case_when(
       input$struc_method == "AbDockgen" ~ "A",
@@ -533,12 +540,13 @@ server <- function(input, output, session) {
       paste0(input_struc_data$pro_name,"_res.zip")
     },
     content = function(file) {
-      zip_file <- paste0("/home/wt/Ab_Design/test/res/",input_struc_data$pro_name,"_res.zip")
+      zip_file <- paste0(sc_path,"/test/res/",input_struc_data$pro_name,"_res.zip")
       file.copy(zip_file, file)
     }
   )
 } 
 
+#options(shiny.fullstacktrace = TRUE)  # 显示完整堆栈跟踪
 shinyApp(ui, server)
 
 
