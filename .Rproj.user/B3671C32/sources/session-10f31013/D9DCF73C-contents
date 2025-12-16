@@ -1,0 +1,9 @@
+[input]
+fasta_file = "/home/ab/run/run_test/her2_abag.fasta"
+ag_pdb_file = "/home/ab/run/run_test/her2_ag.pdb"
+[settings]
+design_method = ["IgLM"]
+design_num = 10
+pre_structure = true
+docking = true
+out_path = "/home/ab/run/run_test/output/"

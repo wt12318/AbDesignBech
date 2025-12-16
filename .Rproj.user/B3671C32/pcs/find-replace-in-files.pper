@@ -1,0 +1,20 @@
+{
+    "dialog-state": {
+        "query": "RFantibody_her2_",
+        "path": "",
+        "regex": false,
+        "caseSensitive": false,
+        "wholeWord": false,
+        "filePatterns": [
+            "*.r",
+            "*.R"
+        ],
+        "useGitGrep": true,
+        "excludeGitIgnore": true,
+        "excludeFilePatterns": [],
+        "resultsCount": 30,
+        "errorCount": 0,
+        "replaceErrors": "",
+        "projectRelative": true
+    }
+}
