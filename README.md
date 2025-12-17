@@ -4,7 +4,7 @@ First, clone or download this repository:
 git clone https://github.com/wt12318/AbDesignBech
 ```
 
-The Docker image file has been uploaded to BaiduYun (https://pan.baidu.com/s/1qh2Qd_4qtfArk0VKzdXlFQ?pwd=44st). The link is [link to Baidu Cloud]. You can load it after downloading.
+The Docker image file has been uploaded to BaiduYun. The link is https://pan.baidu.com/s/1qh2Qd_4qtfArk0VKzdXlFQ?pwd=44st. You can load it after downloading.
 
 ```bash
 docker load -i abdesigner_last.tar
