@@ -1,3 +1,7 @@
+### Benchmarking Artificial Intelligence-Driven Antibody Design
+
+![image](assets/gab_01.png)
+
 First, clone or download this repository:
 
 ```bash
