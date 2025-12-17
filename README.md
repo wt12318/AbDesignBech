@@ -1,6 +1,6 @@
 ### Benchmarking Artificial Intelligence-Driven Antibody Design
 
-<img src="assets/gab_01.png" width="300" />
+<img src="assets/gab_01.png" width="400" align="center" />
 
 First, clone or download this repository:
 
